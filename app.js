@@ -6,6 +6,7 @@ const cookieParser = require("cookie-parser");
 const sequelize = require("./config/db");
 const logger = require('./utils/logger');
 
+const messageRoutes = require("./routes/message.routes");
 const authRoutes = require("./routes/auth.routes");
 
 const app = express();
@@ -19,6 +20,7 @@ app.get("/", (req, res) => {
   res.sendFile(__dirname + "/view/login.html");
 });
 
+app.use("/api/message", messageRoutes);
 app.use("/api/auth", authRoutes);
 
 process.on("unhandledRejection", (err) => {
