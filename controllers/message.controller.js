@@ -1,4 +1,5 @@
 const Message = require("../models/message.model");
+const User = require("../models/user.model");
 
 exports.sendMessage = async (req, res) => {
 
@@ -16,6 +17,30 @@ exports.sendMessage = async (req, res) => {
             message: "Message stored",
             data: newMessage
         });
+
+    } catch (err) {
+
+        res.status(500).json({ error: err.message });
+
+    }
+
+};
+
+exports.getMessages = async (req, res) => {
+
+    try {
+
+        const messages = await Message.findAll({
+            include: [
+                {
+                    model: User,
+                    attributes: ["id", "name"]
+                }
+            ],
+            order: [["createdAt", "ASC"]]
+        });
+
+        res.json(messages);
 
     } catch (err) {
 

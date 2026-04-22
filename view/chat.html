@@ -123,10 +123,41 @@
         const API_URL = "http://localhost:4000/api";
         const chatBody = document.getElementById("chatBody");
 
+        setInterval(() => {
+            loadMessages();
+        }, 3000);
+
         function getTime() {
 
             const now = new Date();
             return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        }
+
+        async function loadMessages() {
+
+            try {
+
+                const res = await axios.get(`${API_URL}/message/all`, {
+                    headers: {
+                        Authorization: token
+                    }
+                });
+
+                const messages = res.data;
+
+                const chatBody = document.getElementById("chatBody");
+                chatBody.innerHTML = "";
+
+                messages.forEach(msg => {
+                    appendMessage(msg.message, msg.userId);
+                });
+
+            } catch (err) {
+
+                console.log(err);
+
+            }
 
         }
 
@@ -202,6 +233,30 @@
                 sendMessage();
             }
         });
+
+        function appendMessage(text, senderId) {
+
+            const chatBody = document.getElementById("chatBody");
+
+            const currentUserId = parseJwt(localStorage.getItem("token")).id;
+
+            const msgDiv = document.createElement("div");
+            msgDiv.className = "message " + (senderId === currentUserId ? "sent" : "received");
+
+            msgDiv.innerHTML = `
+                ${text}
+                <div class="timestamp">${new Date().toLocaleTimeString()}</div>
+            `;
+
+            chatBody.appendChild(msgDiv);
+            chatBody.scrollTop = chatBody.scrollHeight;
+
+        }
+
+        // helper to decode JWT
+        function parseJwt(token) {
+            return JSON.parse(atob(token.split('.')[1]));
+        }
 
     </script>
 
