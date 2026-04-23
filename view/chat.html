@@ -128,11 +128,19 @@
         });
         const chatBody = document.getElementById("chatBody");
 
+        const currentUser = parseJwt(localStorage.getItem("token"));
+        const otherUserId = selectedUserId; // from UI
+
+        const room = getRoomId(currentUser.id, otherUserId);
+
+        // join room
+        socket.emit("join_room", { room });
+
         socket.on("connect", () => {
             console.log("✅ Connected to server:", socket.id);
         });
 
-        socket.on("chat-message", (data) => {
+        socket.on("new_message", (data) => {
 
             appendMessage(data.message, data.userId);
 
@@ -149,19 +157,19 @@
 
             if (!text) return;
 
-            const token = localStorage.getItem("token");
-            const user = parseJwt(token);
+            const currentUser = parseJwt(localStorage.getItem("token"));
+            const room = getRoomId(currentUser.id, selectedUserId);
+
+            socket.emit("new_message", {
+                room,
+                message: text
+            });
 
             if (!user) {
                 alert("Please login again");
                 window.location.href = "/login.html";
                 return;
             }
-
-            // Send to server
-            socket.emit("chat-message", {
-                message: text,
-            });
 
             input.value = "";
 
@@ -204,6 +212,10 @@
                 return null;
             }
 
+        }
+
+        function getRoomId(user1, user2) {
+            return [user1, user2].sort().join("_");
         }
 
         // Enter key support

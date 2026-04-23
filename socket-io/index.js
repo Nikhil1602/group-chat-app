@@ -1,6 +1,7 @@
 const { Server } = require("socket.io");
 const socketMiddleware = require("./middleware");
 const chatHandler = require("./handlers/chat");
+const personalChatHandler = require("./handlers/personalChat");
 
 function initSocket(server) {
 
@@ -18,7 +19,7 @@ function initSocket(server) {
         console.log("🔌 Connected:", socket.user.id);
 
         // Register handlers
-        chatHandler(io, socket);
+        personalChatHandler(io, socket);
     });
 
     return io;
