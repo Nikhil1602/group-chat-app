@@ -121,7 +121,11 @@
 
     <script>
 
-        const socket = io("http://localhost:4000");
+        const socket = io("http://localhost:4000", {
+            auth: {
+                token: localStorage.getItem("token")
+            }
+        });
         const chatBody = document.getElementById("chatBody");
 
         socket.on("connect", () => {
@@ -132,6 +136,10 @@
 
             appendMessage(data.message, data.userId);
 
+        });
+
+        socket.on("connect_error", (err) => {
+            console.log("❌ Auth error:", err.message);
         });
 
         function sendMessage() {
@@ -153,7 +161,6 @@
             // Send to server
             socket.emit("chat-message", {
                 message: text,
-                userId: user.id
             });
 
             input.value = "";

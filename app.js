@@ -11,6 +11,7 @@ const { Server } = require("socket.io"); // ✅ Socket.IO
 const Message = require("./models/message.model");
 const messageRoutes = require("./routes/message.routes");
 const authRoutes = require("./routes/auth.routes");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 
@@ -24,18 +25,46 @@ const io = new Server(server, {
   }
 });
 
+io.use((socket, next) => {
+
+  try {
+
+    const token = socket.handshake.auth.token;
+
+    if (!token) {
+      return next(new Error("Authentication error"));
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // attach user info to socket
+    socket.user = decoded;
+
+    next();
+
+  } catch (err) {
+
+    next(new Error("Authentication failed"));
+
+  }
+
+});
+
 // ✅ Socket.IO Logic
 io.on("connection", (socket) => {
 
-  console.log("🔌 User connected:", socket.id);
+  console.log("🔌 User connected:", socket.user.id);
 
   socket.on("disconnect", () => {
     console.log("❌ User disconnected:", socket.id);
   });
 
   socket.on("chat-message", async (data) => {
+
     try {
-      const { message, userId } = data;
+
+      const userId = socket.user.id;
+      const { message } = data;
 
       // Save to DB
       const savedMessage = await Message.create({ message, userId });
