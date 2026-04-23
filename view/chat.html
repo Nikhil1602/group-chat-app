@@ -8,6 +8,7 @@
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
     <style>
         body {
@@ -21,15 +22,14 @@
         }
 
         .chat-container {
-            max-width: 650px;
-            min-width: 550px;
-            height: 70%;
+            width: 600px;
+            height: 75%;
             display: flex;
             flex-direction: column;
             background: #fff;
             border-radius: 10px;
             overflow: hidden;
-            box-shadow: 0 0 50px rgba(170, 170, 170, 0.3);
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.15);
         }
 
         .chat-header {
@@ -72,10 +72,10 @@
         }
 
         .chat-footer {
-            padding: 10px;
-            border-top: 1px solid #ddd;
             display: flex;
             gap: 10px;
+            padding: 10px;
+            border-top: 1px solid #ddd;
         }
 
         .chat-footer input {
@@ -112,6 +112,8 @@
 
     <script>
 
+        const API_URL = "http://localhost:4000/api";
+
         const socket = io("http://localhost:4000", {
             auth: {
                 token: localStorage.getItem("token")
@@ -121,8 +123,9 @@
         const chatBody = document.getElementById("chatBody");
 
         let currentRoom = null;
+        let receiver = null;
 
-        // ✅ Parse JWT safely
+        // ✅ Parse JWT
         function parseJwt(token) {
             if (!token) return null;
             try {
@@ -132,13 +135,13 @@
             }
         }
 
-        // ✅ Create consistent room ID (email-based for now)
+        // ✅ Deterministic Room ID
         function getRoomId(email1, email2) {
             return [email1, email2].sort().join("_");
         }
 
-        // ✅ Join Room
-        function joinRoom() {
+        // ✅ Join Room with validation
+        async function joinRoom() {
 
             const email = document.getElementById("emailInput").value.trim();
             const currentUser = parseJwt(localStorage.getItem("token"));
@@ -149,18 +152,34 @@
             }
 
             if (!currentUser) {
-                alert("Please login again");
+                alert("Login again");
                 window.location.href = "/login.html";
                 return;
             }
 
-            currentRoom = getRoomId(currentUser.email, email);
+            try {
+                // 🔐 Validate email exists
+                const res = await axios.get(`${API_URL}/auth/user?email=${email}`);
+                receiver = res.data;
 
-            socket.emit("join_room", { room: currentRoom });
+                if (!receiver) {
+                    alert("User not found");
+                    return;
+                }
 
-            chatBody.innerHTML = "";
+                // ✅ Create room
+                currentRoom = getRoomId(currentUser.email, receiver.email);
 
-            console.log("✅ Joined room:", currentRoom);
+                socket.emit("join_room", { room: currentRoom });
+
+                chatBody.innerHTML = "";
+
+                console.log("✅ Joined room:", currentRoom);
+
+            } catch (err) {
+                alert("User not found or server error");
+                console.log(err);
+            }
         }
 
         // ✅ Send Message
@@ -172,7 +191,7 @@
             if (!text) return;
 
             if (!currentRoom) {
-                alert("Join a chat first");
+                alert("Join chat first");
                 return;
             }
 
@@ -206,11 +225,9 @@
             chatBody.scrollTop = chatBody.scrollHeight;
         }
 
-        // Enter key support
+        // Enter key
         document.getElementById("messageInput").addEventListener("keypress", function (e) {
-            if (e.key === "Enter") {
-                sendMessage();
-            }
+            if (e.key === "Enter") sendMessage();
         });
 
         // Debug logs
