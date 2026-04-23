@@ -46,4 +46,16 @@ module.exports = (io, socket) => {
 
     });
 
+    socket.on("send_media", async ({ room, fileUrl }) => {
+
+        const userId = socket.user.id;
+
+        io.to(room).emit("new_message", {
+            type: "media",
+            fileUrl,
+            userId
+        });
+
+    });
+
 };
