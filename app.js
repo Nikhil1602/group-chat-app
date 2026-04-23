@@ -6,55 +6,50 @@ const cookieParser = require("cookie-parser");
 const sequelize = require("./config/db");
 const logger = require('./utils/logger');
 const http = require("http");
-const WebSocket = require("ws");
+const { Server } = require("socket.io"); // ✅ Socket.IO
 
-const Message = require("./models/message.model"); // ✅ FIX
+const Message = require("./models/message.model");
 const messageRoutes = require("./routes/message.routes");
 const authRoutes = require("./routes/auth.routes");
 
 const app = express();
 
-// ✅ Create server properly
+// Create server
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
 
-let clients = [];
+// ✅ Attach Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: "*"
+  }
+});
 
-// ✅ WebSocket Logic
-wss.on("connection", (ws) => {
+// ✅ Socket.IO Logic
+io.on("connection", (socket) => {
 
-  console.log("🔌 New client connected");
-  clients.push(ws);
+  console.log("🔌 User connected:", socket.id);
 
-  ws.on("close", () => {
-    clients = clients.filter(client => client !== ws);
-    console.log("❌ Client disconnected");
+  socket.on("disconnect", () => {
+    console.log("❌ User disconnected:", socket.id);
   });
 
-  ws.on("message", async (data) => {
+  socket.on("chat-message", async (data) => {
     try {
-      const parsed = JSON.parse(data);
-      const { message, userId } = parsed;
+      const { message, userId } = data;
 
       // Save to DB
       const savedMessage = await Message.create({ message, userId });
 
-      const payload = JSON.stringify({
+      // Broadcast to all clients
+      io.emit("chat-message", {
         id: savedMessage.id,
         message: savedMessage.message,
         userId: savedMessage.userId,
         createdAt: savedMessage.createdAt
       });
 
-      // Broadcast to all clients
-      clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(payload);
-        }
-      });
-
     } catch (err) {
-      console.log("WS Error:", err);
+      console.log("Socket.IO Error:", err);
     }
   });
 });
@@ -87,7 +82,6 @@ process.on("uncaughtException", (err) => {
     await sequelize.sync({ alter: true });
     logger.info("✅ Database synced");
 
-    // ✅ IMPORTANT: use server.listen (not app.listen)
     server.listen(process.env.PORT, () => {
       logger.info(`🚀 Server running on port ${process.env.PORT}`);
     });
