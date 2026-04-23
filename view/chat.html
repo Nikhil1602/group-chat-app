@@ -4,10 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat</title>
+    <title>Personal Chat</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
     <style>
@@ -25,7 +24,6 @@
             max-width: 650px;
             min-width: 550px;
             height: 70%;
-            margin: auto;
             display: flex;
             flex-direction: column;
             background: #fff;
@@ -53,7 +51,6 @@
             padding: 10px;
             margin-bottom: 10px;
             border-radius: 10px;
-            position: relative;
             font-size: 14px;
         }
 
@@ -91,25 +88,19 @@
 
     <div class="chat-container">
 
+        <!-- Join Chat -->
+        <div class="p-2 border-bottom">
+            <input type="text" id="emailInput" class="form-control mb-2" placeholder="Enter user email">
+            <button class="btn btn-primary w-100" onclick="joinRoom()">Start Chat</button>
+        </div>
+
         <!-- Header -->
         <div class="chat-header">
-            🌐 Chat Room
+            💬 Personal Chat
         </div>
 
         <!-- Messages -->
-        <div class="chat-body" id="chatBody">
-
-            <!-- <div class="message received">
-                Hello 👋
-                <div class="timestamp">10:00 AM</div>
-            </div>
-
-            <div class="message sent">
-                Hi! How are you?
-                <div class="timestamp">10:01 AM</div>
-            </div> -->
-
-        </div>
+        <div class="chat-body" id="chatBody"></div>
 
         <!-- Input -->
         <div class="chat-footer">
@@ -126,30 +117,53 @@
                 token: localStorage.getItem("token")
             }
         });
+
         const chatBody = document.getElementById("chatBody");
 
-        const currentUser = parseJwt(localStorage.getItem("token"));
-        const otherUserId = selectedUserId; // from UI
+        let currentRoom = null;
 
-        const room = getRoomId(currentUser.id, otherUserId);
+        // ✅ Parse JWT safely
+        function parseJwt(token) {
+            if (!token) return null;
+            try {
+                return JSON.parse(atob(token.split('.')[1]));
+            } catch {
+                return null;
+            }
+        }
 
-        // join room
-        socket.emit("join_room", { room });
+        // ✅ Create consistent room ID (email-based for now)
+        function getRoomId(email1, email2) {
+            return [email1, email2].sort().join("_");
+        }
 
-        socket.on("connect", () => {
-            console.log("✅ Connected to server:", socket.id);
-        });
+        // ✅ Join Room
+        function joinRoom() {
 
-        socket.on("new_message", (data) => {
+            const email = document.getElementById("emailInput").value.trim();
+            const currentUser = parseJwt(localStorage.getItem("token"));
 
-            appendMessage(data.message, data.userId);
+            if (!email) {
+                alert("Enter email");
+                return;
+            }
 
-        });
+            if (!currentUser) {
+                alert("Please login again");
+                window.location.href = "/login.html";
+                return;
+            }
 
-        socket.on("connect_error", (err) => {
-            console.log("❌ Auth error:", err.message);
-        });
+            currentRoom = getRoomId(currentUser.email, email);
 
+            socket.emit("join_room", { room: currentRoom });
+
+            chatBody.innerHTML = "";
+
+            console.log("✅ Joined room:", currentRoom);
+        }
+
+        // ✅ Send Message
         function sendMessage() {
 
             const input = document.getElementById("messageInput");
@@ -157,25 +171,25 @@
 
             if (!text) return;
 
-            const currentUser = parseJwt(localStorage.getItem("token"));
-            const room = getRoomId(currentUser.id, selectedUserId);
-
-            socket.emit("new_message", {
-                room,
-                message: text
-            });
-
-            if (!user) {
-                alert("Please login again");
-                window.location.href = "/login.html";
+            if (!currentRoom) {
+                alert("Join a chat first");
                 return;
             }
 
-            input.value = "";
+            socket.emit("new_message", {
+                room: currentRoom,
+                message: text
+            });
 
+            input.value = "";
         }
 
-        // Append message
+        // ✅ Receive Message
+        socket.on("new_message", (data) => {
+            appendMessage(data.message, data.userId);
+        });
+
+        // ✅ Append Message
         function appendMessage(text, senderId) {
 
             const currentUserId = parseJwt(localStorage.getItem("token"))?.id;
@@ -185,37 +199,11 @@
 
             msg.innerHTML = `
                 ${text}
-                <div class="timestamp">${getTime()}</div>
+                <div class="timestamp">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
             `;
 
             chatBody.appendChild(msg);
             chatBody.scrollTop = chatBody.scrollHeight;
-
-        }
-
-        // Time helper
-        function getTime() {
-
-            const now = new Date();
-            return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-        }
-
-        // Safe JWT parser
-        function parseJwt(token) {
-
-            if (!token) return null;
-
-            try {
-                return JSON.parse(atob(token.split('.')[1]));
-            } catch {
-                return null;
-            }
-
-        }
-
-        function getRoomId(user1, user2) {
-            return [user1, user2].sort().join("_");
         }
 
         // Enter key support
@@ -223,6 +211,15 @@
             if (e.key === "Enter") {
                 sendMessage();
             }
+        });
+
+        // Debug logs
+        socket.on("connect", () => {
+            console.log("✅ Connected:", socket.id);
+        });
+
+        socket.on("connect_error", (err) => {
+            console.log("❌ Auth error:", err.message);
         });
 
     </script>
