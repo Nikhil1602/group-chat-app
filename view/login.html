@@ -55,6 +55,9 @@
 
                 localStorage.setItem("token", res.data.token);
                 alert("Login successful");
+                setTimeout(() => {
+                    window.location.href = "./chat.html";
+                }, 1000);
 
             } catch (err) {
 

@@ -120,86 +120,46 @@
 
     <script>
 
-        const API_URL = "http://localhost:4000/api";
+        const socket = new WebSocket("ws://localhost:4000");
         const chatBody = document.getElementById("chatBody");
 
-        setInterval(() => {
-            loadMessages();
-        }, 3000);
+        // Connect
+        socket.onopen = () => {
+            console.log("✅ Connected to WebSocket");
+        };
 
-        function getTime() {
+        // Receive messages live
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            appendMessage(data.message, data.userId);
+        };
 
-            const now = new Date();
-            return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-        }
-
-        async function loadMessages() {
-
-            try {
-
-                const res = await axios.get(`${API_URL}/message/all`, {
-                    headers: {
-                        Authorization: token
-                    }
-                });
-
-                const messages = res.data;
-
-                const chatBody = document.getElementById("chatBody");
-                chatBody.innerHTML = "";
-
-                messages.forEach(msg => {
-                    appendMessage(msg.message, msg.userId);
-                });
-
-            } catch (err) {
-
-                console.log(err);
-
-            }
-
-        }
-
-        async function sendMessage() {
+        // Send message
+        function sendMessage() {
 
             const input = document.getElementById("messageInput");
             const text = input.value.trim();
 
             if (!text) return;
 
-            const token = localStorage.getItem("token");
+            const user = parseJwt(localStorage.getItem("token"));
 
-            try {
+            socket.send(JSON.stringify({
+                message: text,
+                userId: user.id
+            }));
 
-                const res = await axios.post(`${API_URL}/message/send`, { message: text },
-                    {
-                        headers: {
-                            Authorization: token
-                        }
-                    }
-                );
-
-                appendMessage(text, "sent");
-
-                input.value = "";
-
-            } catch (err) {
-
-                console.log(err);
-                alert("Failed to send message");
-                input.value = "";
-
-            }
+            input.value = "";
 
         }
 
-        function appendMessage(text, type) {
+        // Append message
+        function appendMessage(text, senderId) {
 
-            const chatBody = document.getElementById("chatBody");
+            const currentUserId = parseJwt(localStorage.getItem("token")).id;
 
             const msg = document.createElement("div");
-            msg.className = `message ${type}`;
+            msg.className = "message " + (senderId === currentUserId ? "sent" : "received");
 
             msg.innerHTML = `
                 ${text}
@@ -211,52 +171,21 @@
 
         }
 
-        function receiveMessage(text) {
+        // JWT helper
+        function parseJwt(token) {
 
-            const messageDiv = document.createElement("div");
-            messageDiv.className = "message received";
-
-            messageDiv.innerHTML = `
-                ${text}
-                <div class="timestamp">${getTime()}</div>
-            `;
-
-            chatBody.appendChild(messageDiv);
-
-            chatBody.scrollTop = chatBody.scrollHeight;
+            return JSON.parse(atob(token.split('.')[1]));
 
         }
 
         // Enter key support
         document.getElementById("messageInput").addEventListener("keypress", function (e) {
+
             if (e.key === "Enter") {
                 sendMessage();
             }
+
         });
-
-        function appendMessage(text, senderId) {
-
-            const chatBody = document.getElementById("chatBody");
-
-            const currentUserId = parseJwt(localStorage.getItem("token")).id;
-
-            const msgDiv = document.createElement("div");
-            msgDiv.className = "message " + (senderId === currentUserId ? "sent" : "received");
-
-            msgDiv.innerHTML = `
-                ${text}
-                <div class="timestamp">${new Date().toLocaleTimeString()}</div>
-            `;
-
-            chatBody.appendChild(msgDiv);
-            chatBody.scrollTop = chatBody.scrollHeight;
-
-        }
-
-        // helper to decode JWT
-        function parseJwt(token) {
-            return JSON.parse(atob(token.split('.')[1]));
-        }
 
     </script>
 
