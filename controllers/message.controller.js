@@ -1,5 +1,6 @@
 const Message = require("../models/message.model");
 const User = require("../models/user.model");
+const ArchivedMessage = require("../models/archieve.model");
 const { Op } = require("sequelize");
 
 // ------------------

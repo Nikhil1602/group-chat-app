@@ -13,6 +13,7 @@ require("./models/archieve.model");
 const messageRoutes = require("./routes/message.routes");
 const authRoutes = require("./routes/auth.routes");
 const uploadRoutes = require("./routes/upload.routes");
+const aiRoutes = require("./routes/ai.routes");
 
 // Socket initializer
 const initSocket = require("./socket-io");
@@ -43,7 +44,7 @@ app.get("/", (req, res) => {
 app.use("/api/message", messageRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/upload", uploadRoutes);
-
+app.use("/api/ai", aiRoutes);
 
 // --------------------
 // Socket Initialization

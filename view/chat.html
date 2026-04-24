@@ -101,6 +101,8 @@
 
         <!-- Messages -->
         <div class="chat-body" id="chatBody"></div>
+        <div id="suggestions" class="px-2 py-1 pb-2"></div>
+        <div id="smartReplies" class="px-2 pb-2"></div>
 
         <!-- Input -->
         <div class="chat-footer">
@@ -132,29 +134,130 @@
         let currentRoom = localStorage.getItem("room") || null;
         let currentUser = null;
         let receiver = null;
+        let typingTimeout;
 
         // ------------------
-        // SOCKET DEBUG
+        // UI HELPERS
+        // ------------------
+        function clearAIUI() {
+            document.getElementById("suggestions").innerHTML = "";
+            document.getElementById("smartReplies").innerHTML = "";
+        }
+
+        function showToast(text, type = "success") {
+            const toast = document.createElement("div");
+            toast.innerText = text;
+
+            toast.style.position = "fixed";
+            toast.style.bottom = "20px";
+            toast.style.right = "20px";
+            toast.style.padding = "10px 15px";
+            toast.style.background = type === "error" ? "#ff4d4f" : "#00a130";
+            toast.style.color = "#fff";
+            toast.style.borderRadius = "5px";
+
+            document.body.appendChild(toast);
+
+            setTimeout(() => toast.remove(), 2000);
+        }
+
+        // ------------------
+        // SOCKET
         // ------------------
         socket.on("connect", () => {
             console.log("✅ Connected:", socket.id);
         });
 
-        socket.on("connect_error", (err) => {
-            console.log("❌ Socket error:", err.message);
-            alert("Socket connection failed");
-        });
-
         socket.on("room_joined", () => {
-            showStatus("✅ Joined chat successfully");
+            showToast("✅ Joined chat");
         });
 
-        socket.on("new_message", (data) => {
+        socket.on("new_message", async (data) => {
+
             appendMessage(data);
+
+            // clear suggestions after message
+            clearAIUI();
+
+            // smart replies only for incoming
+            if (data.userId !== currentUser.id) {
+                try {
+                    const res = await axios.post(`${API_URL}/ai/reply`, {
+                        message: data.message
+                    });
+
+                    showReplies(res.data);
+                } catch (err) {
+                    console.log(err);
+                }
+            }
         });
 
         // ------------------
-        // LOAD CURRENT USER
+        // AI UI
+        // ------------------
+        function showReplies(list) {
+            const box = document.getElementById("smartReplies");
+            box.innerHTML = "";
+
+            list.forEach(item => {
+                const btn = document.createElement("button");
+                btn.className = "btn btn-sm btn-success me-2 mb-1";
+                btn.innerText = item;
+
+                btn.onclick = () => {
+                    messageInput.value = item;
+                };
+
+                box.appendChild(btn);
+            });
+        }
+
+        function showSuggestions(list) {
+            const box = document.getElementById("suggestions");
+            box.innerHTML = "";
+
+            list.forEach(item => {
+                const btn = document.createElement("button");
+                btn.className = "btn btn-sm btn-light me-2 mb-1";
+                btn.innerText = item;
+
+                btn.onclick = () => {
+                    messageInput.value += " " + item;
+                };
+
+                box.appendChild(btn);
+            });
+        }
+
+        // ------------------
+        // PREDICTIVE TYPING
+        // ------------------
+        messageInput.addEventListener("input", (e) => {
+
+            if (!currentRoom) return; // 🚫 don't call AI if not in chat
+
+            clearTimeout(typingTimeout);
+
+            const text = e.target.value;
+
+            if (!text) {
+                clearAIUI();
+                return;
+            }
+
+            typingTimeout = setTimeout(async () => {
+                try {
+                    const res = await axios.post(`${API_URL}/ai/predict`, { text });
+                    showSuggestions(res.data);
+                } catch (err) {
+                    console.log(err);
+                }
+            }, 400);
+        });
+
+        // ------------------
+        // USER
         // ------------------
         async function loadCurrentUser() {
             try {
@@ -166,19 +269,16 @@
         }
 
         // ------------------
-        // ROOM ID
+        // ROOM
         // ------------------
         function getRoomId(id1, id2) {
             return [id1, id2].sort().join("_");
         }
 
-        // ------------------
-        // JOIN ROOM
-        // ------------------
         async function joinRoom() {
-            const email = emailInput.value.trim();
 
-            if (!email) return alert("Please enter an email");
+            const email = emailInput.value.trim();
+            if (!email) return alert("Enter email");
 
             try {
                 const res = await axios.get(`${API_URL}/auth/user?email=${email}`);
@@ -190,17 +290,18 @@
                 socket.emit("join_room", { room: currentRoom });
 
                 chatBody.innerHTML = "";
+                clearAIUI();
 
                 document.querySelector(".chat-header span").textContent =
                     `💬 Chat with ${receiver.name || receiver.email}`;
 
-                showStatus("⏳ Joining chat...");
-
                 await loadMessages();
+
+                showToast("🚀 Chat started");
 
             } catch (err) {
                 console.log(err);
-                alert("❌ User not found or error occurred");
+                showToast("❌ User not found", "error");
             }
         }
 
@@ -211,8 +312,11 @@
             try {
                 const res = await axios.get(`${API_URL}/message/${currentRoom}`);
 
-                chatBody.innerHTML = "";
+                if (res.data.length === 0) {
+                    showSuggestions(["Okay", "Sounds good", "Got it"]);
+                }
 
+                chatBody.innerHTML = "";
                 res.data.forEach(msg => appendMessage(msg));
 
             } catch (err) {
@@ -224,14 +328,9 @@
         // SEND MESSAGE
         // ------------------
         function sendMessage() {
+
             const text = messageInput.value.trim();
-
-            if (!text) return;
-
-            if (!currentRoom) {
-                alert("Join chat first");
-                return;
-            }
+            if (!text || !currentRoom) return;
 
             socket.emit("new_message", {
                 room: currentRoom,
@@ -239,34 +338,35 @@
             });
 
             messageInput.value = "";
+            clearAIUI();
         }
 
         // ------------------
         // APPEND MESSAGE
         // ------------------
         function appendMessage(data) {
+
             const msg = document.createElement("div");
 
-            msg.className = "message " +
-                (data.userId === currentUser.id ? "sent" : "received");
-
-            let content = data.type === "media"
-                ? `<a href="${data.fileUrl}" target="_blank">📎 File</a>`
-                : data.message;
+            msg.className = "message " + (data.userId === currentUser.id ? "sent" : "received");
 
             msg.innerHTML = `
-            ${content}
-            <div class="timestamp">${formatTime(data.createdAt)}</div>
-        `;
+                ${data.type === "media"
+                    ? `<a href="${data.fileUrl}" target="_blank">📎 File</a>`
+                    : data.message
+                }
+                <div class="timestamp">${formatTime(data.createdAt)}</div>
+            `;
 
             chatBody.appendChild(msg);
             chatBody.scrollTop = chatBody.scrollHeight;
         }
 
         // ------------------
-        // LEAVE ROOM (UPDATED)
+        // LEAVE
         // ------------------
         function leaveRoom() {
+
             currentRoom = null;
             receiver = null;
 
@@ -276,95 +376,71 @@
             emailInput.value = "";
             messageInput.value = "";
 
+            clearAIUI();
+
             document.querySelector(".chat-header span").textContent = "💬 Personal Chat";
 
-            showStatus("👋 Left chat");
+            showToast("👋 Left chat");
         }
 
         // ------------------
-        // RESET CHAT
+        // RESET (FIXED UX)
         // ------------------
         async function resetChat() {
 
             if (!currentRoom) return;
 
-            const confirmClear = confirm("Are you sure you want to delete this chat?");
-            if (!confirmClear) return;
+            if (!confirm("Delete this chat?")) return;
 
             try {
 
                 await axios.delete(`${API_URL}/message/${currentRoom}`);
 
                 chatBody.innerHTML = "";
+                clearAIUI();
 
-                showStatus("🗑️ Chat cleared permanently");
+                showToast("🗑 Chat deleted");
 
             } catch (err) {
-
-                console.log(err);
-                alert("Failed to clear chat");
-
+                showToast("❌ Failed", "error");
             }
-
         }
 
         // ------------------
-        // STATUS MESSAGE UI
-        // ------------------
-        function showStatus(text) {
-
-            const status = document.createElement("div");
-            status.style.textAlign = "center";
-            status.style.color = "gray";
-            status.style.fontSize = "12px";
-            status.style.margin = "5px";
-
-            status.innerText = text;
-
-            chatBody.appendChild(status);
-
-            setTimeout(() => status.remove(), 2000);
-
-        }
-
-        // ------------------
-        // TIME FORMAT
+        // TIME
         // ------------------
         function formatTime(date) {
-
             if (!date) return "";
-            const d = new Date(date);
-            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
+            return new Date(date).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit"
+            });
         }
 
         // ------------------
-        // AUTH ERROR
+        // AUTH
         // ------------------
         function handleAuthError(err) {
-
             if (err.response?.status === 401) {
                 window.location.href = "/login.html";
-            } else {
-                console.log(err);
             }
-
         }
 
         // ------------------
         // AUTO LOAD
         // ------------------
         window.onload = async () => {
+
             await loadCurrentUser();
 
             if (currentRoom) {
                 socket.emit("join_room", { room: currentRoom });
                 await loadMessages();
-                showStatus("🔄 Reconnected to chat");
+                showToast("🔄 Reconnected");
             }
         };
 
-        // Enter key
+        // ENTER KEY
         messageInput.addEventListener("keypress", (e) => {
             if (e.key === "Enter") sendMessage();
         });
