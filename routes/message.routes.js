@@ -6,5 +6,7 @@ const authMiddleware = require("../middleware/auth.middleware");
 
 router.post("/send", authMiddleware, messageController.sendMessage);
 router.get("/all", authMiddleware, messageController.getMessages);
+router.get("/:roomId", authMiddleware, messageController.getMessagesByRoom);
+router.delete("/:roomId", authMiddleware, messageController.clearRoomMessages);
 
 module.exports = router;

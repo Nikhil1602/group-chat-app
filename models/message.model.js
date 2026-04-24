@@ -6,6 +6,14 @@ const Message = sequelize.define("Message", {
     message: {
         type: DataTypes.TEXT,
         allowNull: false
+    },
+    userId: { // sender
+        type: DataTypes.INTEGER,
+        allowNull: false
+    },
+    receiverId: { // ✅ REQUIRED for personal chat
+        type: DataTypes.INTEGER,
+        allowNull: false
     }
 });
 

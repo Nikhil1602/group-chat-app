@@ -1,22 +1,21 @@
-require('dotenv').config();
-
 const jwt = require("jsonwebtoken");
-const JWT_SECRET = process.env.JWT_SECRET;
 
 module.exports = (req, res, next) => {
 
-    const token = req.headers.authorization;
-
-    if (!token) {
-
-        return res.status(401).json({ message: "No token" });
-
-    }
-
     try {
 
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.user = decoded; // attach user
+        const token =
+            req.cookies.token || // ✅ cookie
+            req.headers.authorization?.split(" ")[1]; // fallback
+
+        if (!token) {
+            return res.status(401).json({ message: "Not authenticated" });
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        req.user = decoded;
+
         next();
 
     } catch (err) {

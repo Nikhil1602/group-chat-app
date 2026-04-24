@@ -1,29 +1,56 @@
 const { Server } = require("socket.io");
-const socketMiddleware = require("./middleware");
-const chatHandler = require("./handlers/chat");
+const jwt = require("jsonwebtoken");
 const personalChatHandler = require("./handlers/personalChat");
 
-function initSocket(server) {
+module.exports = (server) => {
 
     const io = new Server(server, {
         cors: {
-            origin: "*"
+            origin: "*", // match your frontend
+            credentials: true
         }
     });
 
-    // Apply middleware
-    io.use(socketMiddleware);
+    console.log("🚀 Socket.IO server initialized");
 
-    // Handle connections
-    io.on("connection", (socket) => {
-        console.log("🔌 Connected:", socket.user.id);
+    // ✅ AUTH MIDDLEWARE
+    io.use((socket, next) => {
 
-        // Register handlers
-        personalChatHandler(io, socket);
+        try {
+
+            const token = socket.handshake.auth.token;
+
+            if (!token) {
+                return next(new Error("No token"));
+            }
+
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+            socket.user = decoded;
+
+            next();
+
+        } catch (err) {
+
+            console.log("Auth error:", err);
+            next(new Error("Invalid token"));
+
+        }
+
     });
 
-    return io;
+    // ✅ CONNECTION
+    io.on("connection", (socket) => {
 
-}
+        console.log("🔌 Connected:", socket.user.id);
 
-module.exports = initSocket;
+        // attach handlers
+        personalChatHandler(io, socket);
+
+        socket.on("disconnect", () => {
+            console.log("❌ Disconnected:", socket.user.id);
+        });
+
+    });
+
+};

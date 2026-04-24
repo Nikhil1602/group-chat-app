@@ -2,36 +2,52 @@ const Message = require("../../models/message.model");
 
 module.exports = (io, socket) => {
 
-    // ✅ Join personal room
+    console.log("Socket user:", socket.user);
+
+    // JOIN ROOM
     socket.on("join_room", ({ room }) => {
 
-        if (!room) return;
+        if (!room) {
+            console.log("❌ No room provided");
+            return;
+        }
 
         socket.join(room);
-        console.log(`👤 User ${socket.user.id} joined room ${room}`);
+
+        console.log(`👤 User ${socket.user.id} joined ${room}`);
+
+        socket.emit("room_joined", { room });
+
     });
 
-    // ✅ Send personal message
+
+    // SEND MESSAGE
     socket.on("new_message", async ({ room, message }) => {
 
         try {
 
-            if (!room || !message) return;
+            if (!room || !message) {
+                console.log("❌ Missing room/message");
+                return;
+            }
 
             const senderId = socket.user.id;
 
-            // OPTIONAL: extract receiverId from room
-            const [user1, user2] = room.split("_");
-            const receiverId = user1 == senderId ? user2 : user1;
+            const [user1, user2] = room.split("_").map(Number);
 
-            // Save to DB
+            if (!user1 || !user2) {
+                console.log("❌ Invalid room format:", room);
+                return;
+            }
+
+            const receiverId = senderId === user1 ? user2 : user1;
+
             const savedMessage = await Message.create({
                 message,
                 userId: senderId,
                 receiverId
             });
 
-            // Send only to that room
             io.to(room).emit("new_message", {
                 id: savedMessage.id,
                 message: savedMessage.message,
@@ -41,19 +57,22 @@ module.exports = (io, socket) => {
             });
 
         } catch (err) {
-            console.log("❌ Personal chat error:", err);
+            console.log("❌ Message error:", err);
         }
 
     });
 
-    socket.on("send_media", async ({ room, fileUrl }) => {
 
-        const userId = socket.user.id;
+    // SEND MEDIA
+    socket.on("send_media", ({ room, fileUrl }) => {
+
+        if (!room || !fileUrl) return;
 
         io.to(room).emit("new_message", {
             type: "media",
             fileUrl,
-            userId
+            userId: socket.user.id,
+            createdAt: new Date()
         });
 
     });

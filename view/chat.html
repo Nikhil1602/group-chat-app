@@ -17,31 +17,29 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
-            margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         .chat-container {
-            width: 600px;
-            height: 75%;
+            width: 650px;
+            height: 80%;
             display: flex;
             flex-direction: column;
             background: #fff;
             border-radius: 10px;
             overflow: hidden;
-            box-shadow: 0 0 40px rgba(0, 0, 0, 0.15);
         }
 
         .chat-header {
             background: #00a130;
             color: white;
-            padding: 15px;
-            font-weight: bold;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
         }
 
         .chat-body {
             flex: 1;
-            padding: 15px;
+            padding: 10px;
             overflow-y: auto;
             background: #e7efe2;
         }
@@ -51,7 +49,6 @@
             padding: 10px;
             margin-bottom: 10px;
             border-radius: 10px;
-            font-size: 14px;
         }
 
         .sent {
@@ -68,18 +65,17 @@
             font-size: 10px;
             color: gray;
             text-align: right;
-            margin-top: 5px;
         }
 
         .chat-footer {
             display: flex;
             gap: 10px;
             padding: 10px;
-            border-top: 1px solid #ddd;
         }
 
-        .chat-footer input {
-            flex: 1;
+        .attach-btn {
+            border-color: #d7d7d7;
+            background-color: #f0f0f0;
         }
     </style>
 </head>
@@ -88,7 +84,7 @@
 
     <div class="chat-container">
 
-        <!-- Join Chat -->
+        <!-- Join -->
         <div class="p-2 border-bottom">
             <input type="text" id="emailInput" class="form-control mb-2" placeholder="Enter user email">
             <button class="btn btn-primary w-100" onclick="joinRoom()">Start Chat</button>
@@ -96,7 +92,11 @@
 
         <!-- Header -->
         <div class="chat-header">
-            💬 Personal Chat
+            <span>💬 Personal Chat</span>
+            <div>
+                <button class="btn btn-sm btn-warning" onclick="leaveRoom()">Leave</button>
+                <button class="btn btn-sm btn-danger" onclick="resetChat()">Reset</button>
+            </div>
         </div>
 
         <!-- Messages -->
@@ -104,9 +104,10 @@
 
         <!-- Input -->
         <div class="chat-footer">
-            <input type="file" id="fileInput" />
-            <button onclick="sendMedia()">Send File</button>
-            <input type="text" id="messageInput" class="form-control" placeholder="Type a message...">
+            <input type="file" id="fileInput" hidden />
+            <button class="btn attach-btn btn-secondary"
+                onclick="document.getElementById('fileInput').click()">📎</button>
+            <input type="text" id="messageInput" class="form-control" placeholder="Type your message here...">
             <button class="btn btn-success" onclick="sendMessage()">Send</button>
         </div>
 
@@ -116,6 +117,8 @@
 
         const API_URL = "http://localhost:4000/api";
 
+        axios.defaults.withCredentials = true;
+
         const socket = io("http://localhost:4000", {
             auth: {
                 token: localStorage.getItem("token")
@@ -123,72 +126,105 @@
         });
 
         const chatBody = document.getElementById("chatBody");
+        const emailInput = document.getElementById("emailInput");
+        const messageInput = document.getElementById("messageInput");
 
-        let currentRoom = null;
+        let currentRoom = localStorage.getItem("room") || null;
+        let currentUser = null;
         let receiver = null;
 
-        // ✅ Parse JWT
-        function parseJwt(token) {
-            if (!token) return null;
+        // ------------------
+        // SOCKET DEBUG
+        // ------------------
+        socket.on("connect", () => {
+            console.log("✅ Connected:", socket.id);
+        });
+
+        socket.on("connect_error", (err) => {
+            console.log("❌ Socket error:", err.message);
+            alert("Socket connection failed");
+        });
+
+        socket.on("room_joined", () => {
+            showStatus("✅ Joined chat successfully");
+        });
+
+        socket.on("new_message", (data) => {
+            appendMessage(data);
+        });
+
+        // ------------------
+        // LOAD CURRENT USER
+        // ------------------
+        async function loadCurrentUser() {
             try {
-                return JSON.parse(atob(token.split('.')[1]));
+                const res = await axios.get(`${API_URL}/auth/me`);
+                currentUser = res.data;
             } catch {
-                return null;
-            }
-        }
-
-        // ✅ Deterministic Room ID
-        function getRoomId(email1, email2) {
-            return [email1, email2].sort().join("_");
-        }
-
-        // ✅ Join Room with validation
-        async function joinRoom() {
-
-            const email = document.getElementById("emailInput").value.trim();
-            const currentUser = parseJwt(localStorage.getItem("token"));
-
-            if (!email) {
-                alert("Enter email");
-                return;
-            }
-
-            if (!currentUser) {
-                alert("Login again");
                 window.location.href = "/login.html";
-                return;
             }
+        }
+
+        // ------------------
+        // ROOM ID
+        // ------------------
+        function getRoomId(id1, id2) {
+            return [id1, id2].sort().join("_");
+        }
+
+        // ------------------
+        // JOIN ROOM
+        // ------------------
+        async function joinRoom() {
+            const email = emailInput.value.trim();
+
+            if (!email) return alert("Please enter an email");
 
             try {
-                // 🔐 Validate email exists
                 const res = await axios.get(`${API_URL}/auth/user?email=${email}`);
                 receiver = res.data;
 
-                if (!receiver) {
-                    alert("User not found");
-                    return;
-                }
-
-                // ✅ Create room
-                currentRoom = getRoomId(currentUser.email, receiver.email);
+                currentRoom = getRoomId(currentUser.id, receiver.id);
+                localStorage.setItem("room", currentRoom);
 
                 socket.emit("join_room", { room: currentRoom });
 
                 chatBody.innerHTML = "";
 
-                console.log("✅ Joined room:", currentRoom);
+                document.querySelector(".chat-header span").textContent =
+                    `💬 Chat with ${receiver.name || receiver.email}`;
+
+                showStatus("⏳ Joining chat...");
+
+                await loadMessages();
 
             } catch (err) {
-                alert("User not found or server error");
                 console.log(err);
+                alert("❌ User not found or error occurred");
             }
         }
 
-        // ✅ Send Message
-        function sendMessage() {
+        // ------------------
+        // LOAD MESSAGES
+        // ------------------
+        async function loadMessages() {
+            try {
+                const res = await axios.get(`${API_URL}/message/${currentRoom}`);
 
-            const input = document.getElementById("messageInput");
-            const text = input.value.trim();
+                chatBody.innerHTML = "";
+
+                res.data.forEach(msg => appendMessage(msg));
+
+            } catch (err) {
+                handleAuthError(err);
+            }
+        }
+
+        // ------------------
+        // SEND MESSAGE
+        // ------------------
+        function sendMessage() {
+            const text = messageInput.value.trim();
 
             if (!text) return;
 
@@ -202,82 +238,135 @@
                 message: text
             });
 
-            input.value = "";
+            messageInput.value = "";
         }
 
-        // ✅ Receive Message
-        socket.on("new_message", (data) => {
-            appendMessage(data.message, data.userId);
-        });
-
-        // ✅ Append Message
+        // ------------------
+        // APPEND MESSAGE
+        // ------------------
         function appendMessage(data) {
-
-            const currentUserId = parseJwt(localStorage.getItem("token"))?.id;
-
             const msg = document.createElement("div");
-            msg.className = "message " + (data.userId === currentUserId ? "sent" : "received");
 
-            if (data.type === "media") {
+            msg.className = "message " +
+                (data.userId === currentUser.id ? "sent" : "received");
 
-                if (data.fileUrl.match(/\.(jpeg|jpg|png|gif)$/)) {
-                    msg.innerHTML = `<img src="${data.fileUrl}" width="200" />`;
-                } else if (data.fileUrl.match(/\.(mp4|webm)$/)) {
-                    msg.innerHTML = `<video src="${data.fileUrl}" controls width="200"></video>`;
-                } else {
-                    msg.innerHTML = `<a href="${data.fileUrl}" target="_blank">Download File</a>`;
-                }
+            let content = data.type === "media"
+                ? `<a href="${data.fileUrl}" target="_blank">📎 File</a>`
+                : data.message;
 
-            } else {
-                msg.innerHTML = data.message;
-            }
+            msg.innerHTML = `
+            ${content}
+            <div class="timestamp">${formatTime(data.createdAt)}</div>
+        `;
 
             chatBody.appendChild(msg);
+            chatBody.scrollTop = chatBody.scrollHeight;
         }
 
-        async function sendMedia() {
+        // ------------------
+        // LEAVE ROOM (UPDATED)
+        // ------------------
+        function leaveRoom() {
+            currentRoom = null;
+            receiver = null;
 
-            const fileInput = document.getElementById("fileInput");
-            const file = fileInput.files[0];
+            localStorage.removeItem("room");
 
-            if (!file) return;
+            chatBody.innerHTML = "";
+            emailInput.value = "";
+            messageInput.value = "";
 
-            const formData = new FormData();
-            formData.append("file", file);
+            document.querySelector(".chat-header span").textContent = "💬 Personal Chat";
+
+            showStatus("👋 Left chat");
+        }
+
+        // ------------------
+        // RESET CHAT
+        // ------------------
+        async function resetChat() {
+
+            if (!currentRoom) return;
+
+            const confirmClear = confirm("Are you sure you want to delete this chat?");
+            if (!confirmClear) return;
 
             try {
 
-                // 1. Upload to backend
-                const res = await axios.post("http://localhost:4000/api/upload", formData);
+                await axios.delete(`${API_URL}/message/${currentRoom}`);
 
-                const fileUrl = res.data.url;
+                chatBody.innerHTML = "";
 
-                // 2. Emit via socket
-                socket.emit("send_media", {
-                    room: currentRoom,
-                    fileUrl
-                });
-
-                fileInput.value = "";
+                showStatus("🗑️ Chat cleared permanently");
 
             } catch (err) {
+
                 console.log(err);
-                alert("Upload failed");
+                alert("Failed to clear chat");
+
             }
+
         }
 
+        // ------------------
+        // STATUS MESSAGE UI
+        // ------------------
+        function showStatus(text) {
+
+            const status = document.createElement("div");
+            status.style.textAlign = "center";
+            status.style.color = "gray";
+            status.style.fontSize = "12px";
+            status.style.margin = "5px";
+
+            status.innerText = text;
+
+            chatBody.appendChild(status);
+
+            setTimeout(() => status.remove(), 2000);
+
+        }
+
+        // ------------------
+        // TIME FORMAT
+        // ------------------
+        function formatTime(date) {
+
+            if (!date) return "";
+            const d = new Date(date);
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        }
+
+        // ------------------
+        // AUTH ERROR
+        // ------------------
+        function handleAuthError(err) {
+
+            if (err.response?.status === 401) {
+                window.location.href = "/login.html";
+            } else {
+                console.log(err);
+            }
+
+        }
+
+        // ------------------
+        // AUTO LOAD
+        // ------------------
+        window.onload = async () => {
+            await loadCurrentUser();
+
+            if (currentRoom) {
+                socket.emit("join_room", { room: currentRoom });
+                await loadMessages();
+                showStatus("🔄 Reconnected to chat");
+            }
+        };
+
         // Enter key
-        document.getElementById("messageInput").addEventListener("keypress", function (e) {
+        messageInput.addEventListener("keypress", (e) => {
             if (e.key === "Enter") sendMessage();
-        });
-
-        // Debug logs
-        socket.on("connect", () => {
-            console.log("✅ Connected:", socket.id);
-        });
-
-        socket.on("connect_error", (err) => {
-            console.log("❌ Auth error:", err.message);
         });
 
     </script>
