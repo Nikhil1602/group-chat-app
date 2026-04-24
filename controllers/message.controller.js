@@ -66,32 +66,37 @@ exports.getMessagesByRoom = async (req, res) => {
 
         const { roomId } = req.params;
 
-        if (!roomId) {
-            return res.status(400).json({ message: "Room ID required" });
-        }
-
-        // roomId = "1_5"
         const [user1, user2] = roomId.split("_").map(Number);
 
-        if (!user1 || !user2) {
-            return res.status(400).json({ message: "Invalid room format" });
-        }
-
-        const messages = await Message.findAll({
+        // 🔥 Get recent messages
+        const recentMessages = await Message.findAll({
             where: {
                 [Op.or]: [
                     { userId: user1, receiverId: user2 },
                     { userId: user2, receiverId: user1 }
                 ]
-            },
-            order: [["createdAt", "ASC"]]
+            }
         });
 
-        res.json(messages);
+        // 🔥 Get archived messages
+        const archivedMessages = await ArchivedMessage.findAll({
+            where: {
+                [Op.or]: [
+                    { userId: user1, receiverId: user2 },
+                    { userId: user2, receiverId: user1 }
+                ]
+            }
+        });
+
+        // 🔥 Merge + sort
+        const allMessages = [...archivedMessages, ...recentMessages]
+            .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+
+        res.json(allMessages);
 
     } catch (err) {
 
-        console.log("❌ Fetch room messages error:", err);
+        console.log("❌ Fetch error:", err);
         res.status(500).json({ error: err.message });
 
     }
@@ -125,3 +130,4 @@ exports.clearRoomMessages = async (req, res) => {
     }
 
 };
+

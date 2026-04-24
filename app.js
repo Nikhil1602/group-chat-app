@@ -7,6 +7,8 @@ const sequelize = require("./config/db");
 const logger = require('./utils/logger');
 const http = require("http");
 
+require("./models/archieve.model");
+
 // Routes
 const messageRoutes = require("./routes/message.routes");
 const authRoutes = require("./routes/auth.routes");
