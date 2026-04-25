@@ -1,4 +1,6 @@
 const Message = require("../../models/message.model");
+const User = require("../../models/user.model");
+const Group = require("../../models/group.model");
 
 module.exports = (io, socket) => {
 
@@ -12,7 +14,7 @@ module.exports = (io, socket) => {
             return;
         }
 
-        socket.join(room);
+        socket.join(`group_${room}`);
 
         console.log(`👤 User ${socket.user.id} joined ${room}`);
 
@@ -32,27 +34,27 @@ module.exports = (io, socket) => {
             }
 
             const senderId = socket.user.id;
+            const sender = await User.findByPk(senderId, {
+                attributes: ["id", "groupId", "name"]
+            });
 
-            const [user1, user2] = room.split("_").map(Number);
-
-            if (!user1 || !user2) {
-                console.log("❌ Invalid room format:", room);
+            if (!sender?.groupId || String(sender.groupId) !== String(room)) {
+                console.log("❌ User not part of this room:", senderId, room);
                 return;
             }
-
-            const receiverId = senderId === user1 ? user2 : user1;
 
             const savedMessage = await Message.create({
                 message,
                 userId: senderId,
-                receiverId
+                roomId: room
             });
 
-            io.to(room).emit("new_message", {
+            io.to(`group_${room}`).emit("new_message", {
                 id: savedMessage.id,
                 message: savedMessage.message,
                 userId: senderId,
-                receiverId,
+                userName: sender.name,
+                roomId: room,
                 createdAt: savedMessage.createdAt
             });
 
@@ -64,17 +66,77 @@ module.exports = (io, socket) => {
 
 
     // SEND MEDIA
-    socket.on("send_media", ({ room, fileUrl }) => {
+    socket.on("send_media", async ({ room, fileUrl, fileName, mimeType }) => {
+        try {
+            if (!room || !fileUrl) return;
 
-        if (!room || !fileUrl) return;
+            const senderId = socket.user.id;
+            const sender = await User.findByPk(senderId, {
+                attributes: ["id", "groupId", "name"]
+            });
 
-        io.to(room).emit("new_message", {
-            type: "media",
-            fileUrl,
-            userId: socket.user.id,
-            createdAt: new Date()
-        });
+            if (!sender?.groupId || String(sender.groupId) !== String(room)) {
+                console.log("❌ User not part of this room:", senderId, room);
+                return;
+            }
 
+            const mediaPayload = JSON.stringify({ fileUrl, fileName, mimeType });
+
+            const savedMessage = await Message.create({
+                message: mediaPayload,
+                userId: senderId,
+                roomId: room
+            });
+
+            io.to(`group_${room}`).emit("new_message", {
+                id: savedMessage.id,
+                type: "media",
+                fileUrl,
+                fileName,
+                mimeType,
+                userId: senderId,
+                userName: sender.name,
+                roomId: room,
+                createdAt: savedMessage.createdAt
+            });
+        } catch (err) {
+            console.log("❌ Media error:", err);
+        }
+    });
+
+    socket.on("invite_to_group", async ({ targetUserId }) => {
+        try {
+            const inviter = await User.findByPk(socket.user.id, {
+                attributes: ["id", "name", "groupId"]
+            });
+
+            if (!inviter?.groupId) return;
+
+            const targetUser = await User.findByPk(targetUserId, {
+                attributes: ["id", "name", "groupId"]
+            });
+
+            if (!targetUser || targetUser.groupId) return;
+
+            const group = await Group.findByPk(inviter.groupId, {
+                attributes: ["id", "name"]
+            });
+
+            if (!group) return;
+
+            io.to(`user_${targetUser.id}`).emit("group_invitation", {
+                groupId: group.id,
+                groupName: group.name,
+                invitedBy: inviter.name || "A user"
+            });
+        } catch (err) {
+            console.log("❌ Invite error:", err);
+        }
+    });
+
+    socket.on("group_joined", ({ groupId }) => {
+        if (!groupId) return;
+        socket.join(`group_${groupId}`);
     });
 
 };

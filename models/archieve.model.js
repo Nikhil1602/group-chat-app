@@ -6,6 +6,10 @@ const ArchivedMessage = sequelize.define("ArchivedMessage", {
         type: DataTypes.TEXT,
         allowNull: false
     },
+    roomId: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
     userId: {
         type: DataTypes.INTEGER,
         allowNull: false

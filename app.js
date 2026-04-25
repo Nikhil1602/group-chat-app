@@ -6,6 +6,7 @@ const cookieParser = require("cookie-parser");
 const sequelize = require("./config/db");
 const logger = require('./utils/logger');
 const http = require("http");
+const path = require("path");
 
 require("./models/archieve.model");
 
@@ -14,6 +15,7 @@ const messageRoutes = require("./routes/message.routes");
 const authRoutes = require("./routes/auth.routes");
 const uploadRoutes = require("./routes/upload.routes");
 const aiRoutes = require("./routes/ai.routes");
+const groupRoutes = require("./routes/group.routes");
 
 // Socket initializer
 const initSocket = require("./socket-io");
@@ -32,6 +34,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.static("view"));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 
 // --------------------
@@ -45,6 +48,7 @@ app.use("/api/message", messageRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/group", groupRoutes);
 
 // --------------------
 // Socket Initialization

@@ -1,6 +1,7 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const personalChatHandler = require("./handlers/personalChat");
+const User = require("../models/user.model");
 
 module.exports = (server) => {
 
@@ -25,7 +26,6 @@ module.exports = (server) => {
             }
 
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
             socket.user = decoded;
 
             next();
@@ -43,6 +43,15 @@ module.exports = (server) => {
     io.on("connection", (socket) => {
 
         console.log("🔌 Connected:", socket.user.id);
+        socket.join(`user_${socket.user.id}`);
+
+        User.findByPk(socket.user.id, { attributes: ["id", "groupId"] })
+            .then((user) => {
+                if (user?.groupId) {
+                    socket.join(`group_${user.groupId}`);
+                }
+            })
+            .catch((err) => console.log("Failed to auto-join group room:", err.message));
 
         // attach handlers
         personalChatHandler(io, socket);

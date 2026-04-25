@@ -4,115 +4,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personal Chat</title>
-
+    <title>Group Chat</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-
     <style>
         body {
-            background: #ffbc41;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            background-color: #f8f9fa;
+            min-height: 100vh;
+            font-family: 'Poppins', sans-serif;
         }
 
-        .chat-container {
-            width: 650px;
-            height: 80%;
-            display: flex;
-            flex-direction: column;
-            background: #fff;
-            border-radius: 10px;
-            overflow: hidden;
+        .app-shell {
+            max-width: 1200px;
+            margin: 24px auto;
         }
 
-        .chat-header {
-            background: #00a130;
-            color: white;
-            padding: 10px;
-            display: flex;
-            justify-content: space-between;
+        .card-soft {
+            border: 0;
+            border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(19, 33, 68, 0.08);
         }
 
         .chat-body {
-            flex: 1;
-            padding: 10px;
+            height: 420px;
             overflow-y: auto;
-            background: #e7efe2;
+            /* background: #e9f3ff; */
+            background-color: #e7f1ff;
         }
 
         .message {
-            max-width: 70%;
+            max-width: 75%;
             padding: 10px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             border-radius: 10px;
         }
 
         .sent {
-            background: #a7ffc1;
             margin-left: auto;
+            /* background: #d1fae5; */
+            background-color: #c6e9ff;
         }
 
         .received {
-            background: #fff;
             margin-right: auto;
+            background: #fff;
         }
 
         .timestamp {
-            font-size: 10px;
-            color: gray;
+            font-size: 11px;
+            color: #6b7280;
             text-align: right;
         }
 
-        .chat-footer {
-            display: flex;
-            gap: 10px;
-            padding: 10px;
+        .media-preview {
+            max-width: 220px;
+            max-height: 220px;
+            border-radius: 8px;
+            display: block;
+            margin-bottom: 8px;
         }
 
-        .attach-btn {
-            border-color: #d7d7d7;
-            background-color: #f0f0f0;
+        .file-meta {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .invite-alert {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            width: 340px;
         }
     </style>
 </head>
 
-<body>
 
-    <div class="chat-container">
+<body class="bg-primary">
 
-        <!-- Join -->
-        <div class="p-2 border-bottom">
-            <input type="text" id="emailInput" class="form-control mb-2" placeholder="Enter user email">
-            <button class="btn btn-primary w-100" onclick="joinRoom()">Start Chat</button>
-        </div>
-
-        <!-- Header -->
-        <div class="chat-header">
-            <span>💬 Personal Chat</span>
-            <div>
-                <button class="btn btn-sm btn-warning" onclick="leaveRoom()">Leave</button>
-                <button class="btn btn-sm btn-danger" onclick="resetChat()">Reset</button>
+    <div class="app-shell container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="m-0 text-white">🗪 Group Chat</h4>
+            <div class="d-flex flex-column">
+                <button class="mb-2 btn btn-danger" onclick="logout()">Logout</button>
+                <div class="text-white" id="userLabel"></div>
             </div>
         </div>
 
-        <!-- Messages -->
-        <div class="chat-body" id="chatBody"></div>
-        <div id="suggestions" class="px-2 py-1 pb-2"></div>
-        <div id="smartReplies" class="px-2 pb-2"></div>
+        <div id="inviteBox"></div>
 
-        <!-- Input -->
-        <div class="chat-footer">
-            <input type="file" id="fileInput" hidden />
-            <button class="btn attach-btn btn-secondary"
-                onclick="document.getElementById('fileInput').click()">📎</button>
-            <input type="text" id="messageInput" class="form-control" placeholder="Type your message here...">
-            <button class="btn btn-success" onclick="sendMessage()">Send</button>
+        <!-- LOBBY -->
+        <div id="lobbyView" class="row g-3">
+            <div class="col-lg-8">
+                <div class="card card-soft">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="m-0">👥 Available Groups</h5>
+                            <button class="btn btn-secondary btn-sm" onclick="loadGroups()">Refresh</button>
+                        </div>
+                        <div id="groupsList" class="list-group"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card card-soft">
+                    <div class="card-body">
+                        <h5>➕ Create Group</h5>
+                        <input id="createGroupInput" class="form-control my-3" placeholder="Enter group name">
+                        <button class="btn btn-primary w-100" onclick="createGroup()">Create Group</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
+        <!-- CHAT -->
+        <div id="chatView" class="row g-3 d-none">
+            <div class="col-lg-8">
+                <div class="card card-soft">
+                    <div class="card-header d-flex justify-content-between p-3" style="border: none;">
+                        <strong id="chatTitle">Room</strong>
+                        <button class="btn btn-sm btn-danger" onclick="resetChat()">Clear Messages</button>
+                    </div>
+                    <div id="chatBody" class="chat-body p-3"></div>
+                    <div id="suggestions" class="px-3 pt-2"></div>
+                    <div id="smartReplies" class="px-3 pb-2"></div>
+                    <div class="p-3 border-top d-flex gap-2">
+                        <input type="file" id="fileInput" hidden>
+                        <button class="btn btn-light" onclick="document.getElementById('fileInput').click()">📎</button>
+                        <input id="messageInput" class="form-control" placeholder="Type your message...">
+                        <button class="btn btn-success" onclick="sendMessage()">Send</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div style="background-color: #ffc637;" class="card card-soft">
+                    <div class="card-body">
+                        <h6 class="mb-3">📫 Invite People</h6>
+                        <div id="ungroupedList" class="list-group"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -121,332 +156,379 @@
 
         axios.defaults.withCredentials = true;
 
-        const socket = io("http://localhost:4000", {
-            auth: {
-                token: localStorage.getItem("token")
+        axios.interceptors.response.use(res => res, err => {
+            if (err.response?.status === 401) {
+                if (!window.location.pathname.includes("login.html")) {
+                    window.location.href = "./login.html";
+                }
             }
+            return Promise.reject(err);
         });
 
+        const socket = io("http://localhost:4000", {
+            auth: { token: localStorage.getItem("token") }
+        });
+
+        const lobbyView = document.getElementById("lobbyView");
+        const chatView = document.getElementById("chatView");
+        const groupsList = document.getElementById("groupsList");
+        const ungroupedList = document.getElementById("ungroupedList");
         const chatBody = document.getElementById("chatBody");
-        const emailInput = document.getElementById("emailInput");
         const messageInput = document.getElementById("messageInput");
-
-        let currentRoom = localStorage.getItem("room") || null;
-        let currentUser = null;
-        let receiver = null;
+        const fileInput = document.getElementById("fileInput");
+        const userLabel = document.getElementById("userLabel");
+        const chatTitle = document.getElementById("chatTitle");
+        const inviteBox = document.getElementById("inviteBox");
         let typingTimeout;
+        let currentUser = null;
+        let currentGroup = null;
 
-        // ------------------
-        // UI HELPERS
-        // ------------------
+        function showToast(text, type = "success") {
+            const toast = document.createElement("div");
+            toast.className = "invite-alert alert " + (type === "error" ? "alert-danger" : "alert-success");
+            toast.innerText = text;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2200);
+        }
+
         function clearAIUI() {
             document.getElementById("suggestions").innerHTML = "";
             document.getElementById("smartReplies").innerHTML = "";
         }
 
-        function showToast(text, type = "success") {
-            const toast = document.createElement("div");
-            toast.innerText = text;
-
-            toast.style.position = "fixed";
-            toast.style.bottom = "20px";
-            toast.style.right = "20px";
-            toast.style.padding = "10px 15px";
-            toast.style.background = type === "error" ? "#ff4d4f" : "#00a130";
-            toast.style.color = "#fff";
-            toast.style.borderRadius = "5px";
-
-            document.body.appendChild(toast);
-
-            setTimeout(() => toast.remove(), 2000);
+        function isMediaMessage(data) {
+            if (data.type === "media" && data.fileUrl) return true;
+            if (typeof data.message !== "string") return false;
+            if (!data.message.startsWith("{")) return data.message.includes("/uploads/");
+            try { return !!JSON.parse(data.message).fileUrl; } catch { return false; }
         }
 
-        // ------------------
-        // SOCKET
-        // ------------------
-        socket.on("connect", () => {
-            console.log("✅ Connected:", socket.id);
-        });
-
-        socket.on("room_joined", () => {
-            showToast("✅ Joined chat");
-        });
-
-        socket.on("new_message", async (data) => {
-
-            appendMessage(data);
-
-            // clear suggestions after message
-            clearAIUI();
-
-            // smart replies only for incoming
-            if (data.userId !== currentUser.id) {
-                try {
-                    const res = await axios.post(`${API_URL}/ai/reply`, {
-                        message: data.message
-                    });
-
-                    showReplies(res.data);
-                } catch (err) {
-                    console.log(err);
-                }
+        function getMediaData(data) {
+            if (data.type === "media") return { fileUrl: data.fileUrl, fileName: data.fileName || "file", mimeType: data.mimeType || "" };
+            try {
+                const parsed = JSON.parse(data.message);
+                return { fileUrl: parsed.fileUrl, fileName: parsed.fileName || "file", mimeType: parsed.mimeType || "" };
+            } catch {
+                return { fileUrl: data.message, fileName: "file", mimeType: "" };
             }
-        });
-
-        // ------------------
-        // AI UI
-        // ------------------
-        function showReplies(list) {
-            const box = document.getElementById("smartReplies");
-            box.innerHTML = "";
-
-            list.forEach(item => {
-                const btn = document.createElement("button");
-                btn.className = "btn btn-sm btn-success me-2 mb-1";
-                btn.innerText = item;
-
-                btn.onclick = () => {
-                    messageInput.value = item;
-                };
-
-                box.appendChild(btn);
-            });
         }
 
-        function showSuggestions(list) {
-            const box = document.getElementById("suggestions");
-            box.innerHTML = "";
-
-            list.forEach(item => {
-                const btn = document.createElement("button");
-                btn.className = "btn btn-sm btn-light me-2 mb-1";
-                btn.innerText = item;
-
-                btn.onclick = () => {
-                    messageInput.value += " " + item;
-                };
-
-                box.appendChild(btn);
-            });
+        function isImageType(mimeType, fileUrl = "") {
+            if (mimeType && mimeType.startsWith("image/")) return true;
+            return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(fileUrl);
         }
 
-        // ------------------
-        // PREDICTIVE TYPING
-        // ------------------
-        messageInput.addEventListener("input", (e) => {
-
-            if (!currentRoom) return; // 🚫 don't call AI if not in chat
-
-            clearTimeout(typingTimeout);
-
-            const text = e.target.value;
-
-            if (!text) {
-                clearAIUI();
-                return;
+        function renderAppMode() {
+            const inGroup = !!currentUser?.groupId;
+            lobbyView.classList.toggle("d-none", inGroup);
+            chatView.classList.toggle("d-none", !inGroup);
+            if (inGroup) {
+                console.log(currentUser);
+                currentGroup = currentUser.Group;
+                chatTitle.textContent = `👥 Group - #${currentGroup.name}`;
             }
+        }
 
-            typingTimeout = setTimeout(async () => {
-                try {
-                    const res = await axios.post(`${API_URL}/ai/predict`, { text });
-                    showSuggestions(res.data);
-                } catch (err) {
-                    console.log(err);
-                }
-            }, 400);
-        });
-
-        // ------------------
-        // USER
-        // ------------------
         async function loadCurrentUser() {
             try {
                 const res = await axios.get(`${API_URL}/auth/me`);
+                console.log(res);
                 currentUser = res.data;
+                userLabel.textContent = `${currentUser.name} (${currentUser.email})`;
+                renderAppMode();
             } catch {
                 window.location.href = "/login.html";
             }
         }
 
-        // ------------------
-        // ROOM
-        // ------------------
-        function getRoomId(id1, id2) {
-            return [id1, id2].sort().join("_");
-        }
-
-        async function joinRoom() {
-
-            const email = emailInput.value.trim();
-            if (!email) return alert("Enter email");
-
-            try {
-                const res = await axios.get(`${API_URL}/auth/user?email=${email}`);
-                receiver = res.data;
-
-                currentRoom = getRoomId(currentUser.id, receiver.id);
-                localStorage.setItem("room", currentRoom);
-
-                socket.emit("join_room", { room: currentRoom });
-
-                chatBody.innerHTML = "";
-                clearAIUI();
-
-                document.querySelector(".chat-header span").textContent =
-                    `💬 Chat with ${receiver.name || receiver.email}`;
-
-                await loadMessages();
-
-                showToast("🚀 Chat started");
-
-            } catch (err) {
-                console.log(err);
-                showToast("❌ User not found", "error");
+        async function loadGroups() {
+            const res = await axios.get(`${API_URL}/group`);
+            groupsList.innerHTML = "";
+            if (!res.data.length) {
+                groupsList.innerHTML = `<div class="text-muted text-center py-3 bg-light">No groups yet.</div>`;
+                return;
             }
-        }
-
-        // ------------------
-        // LOAD MESSAGES
-        // ------------------
-        async function loadMessages() {
-            try {
-                const res = await axios.get(`${API_URL}/message/${currentRoom}`);
-
-                if (res.data.length === 0) {
-                    showSuggestions(["Okay", "Sounds good", "Got it"]);
-                }
-
-                chatBody.innerHTML = "";
-                res.data.forEach(msg => appendMessage(msg));
-
-            } catch (err) {
-                handleAuthError(err);
-            }
-        }
-
-        // ------------------
-        // SEND MESSAGE
-        // ------------------
-        function sendMessage() {
-
-            const text = messageInput.value.trim();
-            if (!text || !currentRoom) return;
-
-            socket.emit("new_message", {
-                room: currentRoom,
-                message: text
+            res.data.forEach(group => {
+                const item = document.createElement("div");
+                item.className = "list-group-item d-flex justify-content-between align-items-center";
+                item.innerHTML = `
+                    <div><strong>${group.name}</strong></div>
+                    <button class="btn btn-sm btn-primary">Join</button>
+                `;
+                item.querySelector("button").onclick = () => joinGroup(group.id);
+                groupsList.appendChild(item);
             });
-
-            messageInput.value = "";
-            clearAIUI();
         }
 
-        // ------------------
-        // APPEND MESSAGE
-        // ------------------
+        async function createGroup() {
+            const input = document.getElementById("createGroupInput");
+            const name = input.value.trim();
+            if (!name) return showToast("Enter group name", "error");
+            try {
+                const res = await axios.post(`${API_URL}/group`, { name });
+                input.value = "";
+                currentUser.groupId = res.data.id;
+                socket.emit("group_joined", { groupId: res.data.id });
+                socket.emit("join_room", { room: String(res.data.id) });
+                renderAppMode();
+                await loadMessages();
+                await loadUngroupedUsers();
+                showToast("Group created");
+            } catch (err) {
+                showToast(err.response?.data?.message || "Create group failed", "error");
+            }
+        }
+
+        async function joinGroup(groupId) {
+            try {
+                await axios.post(`${API_URL}/group/join/${groupId}`);
+                currentUser.groupId = groupId;
+                socket.emit("group_joined", { groupId });
+                socket.emit("join_room", { room: String(groupId) });
+                renderAppMode();
+                await loadMessages();
+                await loadUngroupedUsers();
+                showToast("Joined group");
+            } catch (err) {
+                showToast(err.response?.data?.message || "Join failed", "error");
+            }
+        }
+
+        async function loadUngroupedUsers() {
+            const res = await axios.get(`${API_URL}/auth/ungrouped`);
+            ungroupedList.innerHTML = "";
+            const users = res.data.filter(u => u.id !== currentUser.id);
+            if (!users.length) {
+                ungroupedList.innerHTML = `<div class="text-muted text-center py-2">😭 Everyone already joined a group.</div>`;
+                return;
+            }
+            users.forEach(user => {
+                const row = document.createElement("div");
+                row.className = "list-group-item d-flex justify-content-between align-items-center";
+                row.style.backgroundColor = "#fadb8d";
+                row.style.border = "none";
+                row.innerHTML = `
+                    <div>
+                        <div>👤 ${user.name || "User"}</div>
+                        <small class="text-muted">${user.email}</small>
+                    </div>
+                    <button class="btn btn-sm btn-primary">Invite</button>
+                `;
+                row.querySelector("button").onclick = () => inviteUser(user.id);
+                ungroupedList.appendChild(row);
+            });
+        }
+
+        function inviteUser(targetUserId) {
+            if (!currentUser?.groupId) return;
+            socket.emit("invite_to_group", { targetUserId });
+            showToast("Invitation sent");
+        }
+
+        function showInvitation(invite) {
+
+            inviteBox.innerHTML = `
+                <div class="invite-alert alert alert-info">
+                    <div><strong>${invite.invitedBy}</strong> invited you to <strong>${invite.groupName}</strong></div>
+                    <div class="mt-2">
+                        <button id="acceptInviteBtn" class="btn btn-sm btn-primary">Accept Invitation</button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById("acceptInviteBtn").onclick = async () => {
+                try {
+                    await axios.post(`${API_URL}/group/accept-invite`, { groupId: invite.groupId });
+                    currentUser.groupId = invite.groupId;
+                    inviteBox.innerHTML = "";
+                    socket.emit("group_joined", { groupId: invite.groupId });
+                    socket.emit("join_room", { room: String(invite.groupId) });
+                    renderAppMode();
+                    await loadMessages();
+                    await loadUngroupedUsers();
+                } catch (err) {
+                    showToast(err.response?.data?.message || "Failed to accept invite", "error");
+                }
+            };
+
+        }
+
+        async function loadMessages() {
+            if (!currentUser?.groupId) return;
+            const res = await axios.get(`${API_URL}/message/${currentUser.groupId}`);
+            chatBody.innerHTML = "";
+            res.data.forEach(msg => appendMessage(msg));
+        }
+
         function appendMessage(data) {
 
             const msg = document.createElement("div");
-
             msg.className = "message " + (data.userId === currentUser.id ? "sent" : "received");
+            const mediaMessage = isMediaMessage(data);
+            const mediaData = mediaMessage ? getMediaData(data) : null;
+            const sender = data.userId === currentUser.id ? "You" : (data.userName || `User ${data.userId}`);
 
             msg.innerHTML = `
-                ${data.type === "media"
-                    ? `<a href="${data.fileUrl}" target="_blank">📎 File</a>`
-                    : data.message
-                }
-                <div class="timestamp">${formatTime(data.createdAt)}</div>
+                <div class="mb-1"><small><strong>${sender}</strong></small></div>
+                ${mediaMessage
+                    ? (
+                        isImageType(mediaData.mimeType, mediaData.fileUrl)
+                            ? `<a href="${mediaData.fileUrl}" target="_blank"><img src="${mediaData.fileUrl}" class="media-preview" alt="${mediaData.fileName}"></a>
+                               <div class="file-meta"><span>${mediaData.fileName}</span><a class="btn btn-sm btn-outline-primary" href="${mediaData.fileUrl}" download="${mediaData.fileName}">Download</a></div>`
+                            : `<div class="file-meta"><a href="${mediaData.fileUrl}" target="_blank">📎 ${mediaData.fileName}</a><a class="btn btn-sm btn-outline-primary" href="${mediaData.fileUrl}" download="${mediaData.fileName}">Download</a></div>`
+                    )
+                    : data.message}
+                <div class="timestamp">${new Date(data.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
             `;
 
             chatBody.appendChild(msg);
             chatBody.scrollTop = chatBody.scrollHeight;
+
         }
 
-        // ------------------
-        // LEAVE
-        // ------------------
-        function leaveRoom() {
+        function sendMessage() {
 
-            currentRoom = null;
-            receiver = null;
-
-            localStorage.removeItem("room");
-
-            chatBody.innerHTML = "";
-            emailInput.value = "";
+            const text = messageInput.value.trim();
+            if (!text || !currentUser?.groupId) return;
+            socket.emit("new_message", { room: String(currentUser.groupId), message: text });
             messageInput.value = "";
-
             clearAIUI();
 
-            document.querySelector(".chat-header span").textContent = "💬 Personal Chat";
-
-            showToast("👋 Left chat");
         }
 
-        // ------------------
-        // RESET (FIXED UX)
-        // ------------------
+        async function uploadAndSendMedia(file) {
+
+            if (!file || !currentUser?.groupId) return;
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const res = await axios.post(`${API_URL}/upload`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+            socket.emit("send_media", {
+                room: String(currentUser.groupId),
+                fileUrl: res.data.url,
+                fileName: res.data.fileName,
+                mimeType: res.data.mimeType
+            });
+
+        }
+
         async function resetChat() {
 
-            if (!currentRoom) return;
+            if (!currentUser?.groupId) return;
+            if (!confirm("Delete all messages in this group?")) return;
+            await axios.delete(`${API_URL}/message/${currentUser.groupId}`);
+            await loadMessages();
 
-            if (!confirm("Delete this chat?")) return;
-
-            try {
-
-                await axios.delete(`${API_URL}/message/${currentRoom}`);
-
-                chatBody.innerHTML = "";
-                clearAIUI();
-
-                showToast("🗑 Chat deleted");
-
-            } catch (err) {
-                showToast("❌ Failed", "error");
-            }
         }
 
-        // ------------------
-        // TIME
-        // ------------------
-        function formatTime(date) {
-            if (!date) return "";
-            return new Date(date).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit"
-            });
-        }
+        socket.on("new_message", async (data) => {
 
-        // ------------------
-        // AUTH
-        // ------------------
-        function handleAuthError(err) {
-            if (err.response?.status === 401) {
-                window.location.href = "/login.html";
+            appendMessage(data);
+            clearAIUI();
+
+            const mediaMessage = isMediaMessage(data);
+
+            if (!mediaMessage && data.userId !== currentUser.id) {
+
+                try {
+
+                    const res = await axios.post(`${API_URL}/ai/reply`, { message: data.message });
+                    const box = document.getElementById("smartReplies");
+                    box.innerHTML = "";
+                    res.data.forEach(item => {
+                        const btn = document.createElement("button");
+                        btn.className = "btn btn-sm btn-success me-2 mb-1";
+                        btn.innerText = item;
+                        btn.onclick = () => { messageInput.value = item; };
+                        box.appendChild(btn);
+                    });
+
+                } catch (_err) { }
+
             }
-        }
+        });
 
-        // ------------------
-        // AUTO LOAD
-        // ------------------
-        window.onload = async () => {
+        socket.on("group_invitation", (invite) => {
+            if (currentUser?.groupId) return;
+            showInvitation(invite);
+        });
 
-            await loadCurrentUser();
-
-            if (currentRoom) {
-                socket.emit("join_room", { room: currentRoom });
-                await loadMessages();
-                showToast("🔄 Reconnected");
-            }
-        };
-
-        // ENTER KEY
         messageInput.addEventListener("keypress", (e) => {
             if (e.key === "Enter") sendMessage();
         });
 
-    </script>
+        messageInput.addEventListener("input", (e) => {
+            if (!currentUser?.groupId) return;
+            clearTimeout(typingTimeout);
+            const text = e.target.value;
+            if (!text) return clearAIUI();
+            typingTimeout = setTimeout(async () => {
+                try {
+                    const res = await axios.post(`${API_URL}/ai/predict`, { text });
+                    const box = document.getElementById("suggestions");
+                    box.innerHTML = "";
+                    res.data.forEach(item => {
+                        const btn = document.createElement("button");
+                        btn.className = "btn btn-sm btn-secondary me-2 mb-1";
+                        btn.innerText = item;
+                        btn.onclick = () => { messageInput.value += " " + item; };
+                        box.appendChild(btn);
+                    });
+                } catch (_err) { }
+            }, 400);
+        });
 
+        fileInput.addEventListener("change", async (e) => {
+
+            const file = e.target.files?.[0];
+
+            if (!file) return;
+
+            try {
+
+                await uploadAndSendMedia(file);
+                showToast("File shared");
+
+            } catch (_err) {
+
+                showToast("Upload failed", "error");
+
+            } finally {
+
+                fileInput.value = "";
+
+            }
+
+        });
+
+        window.onload = async () => {
+
+            await loadCurrentUser();
+
+            if (currentUser.groupId) {
+
+                socket.emit("group_joined", { groupId: currentUser.groupId });
+                socket.emit("join_room", { room: String(currentUser.groupId) });
+                await loadMessages();
+                await loadUngroupedUsers();
+
+            } else {
+
+                await loadGroups();
+
+            }
+
+        };
+
+        async function logout() {
+
+            await axios.post(`${API_URL}/auth/logout`);
+            localStorage.removeItem("token");
+            window.location.href = "/login.html";
+
+        }
+
+    </script>
 </body>
 
 </html>

@@ -9,39 +9,109 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 </head>
 
+<style>
+    body {
+        background-color: #f8f9fa;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-family: 'Poppins', sans-serif;
+    }
+
+    .card {
+        width: 400px;
+        padding: 20px;
+        border-radius: 20px;
+        box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.1);
+    }
+
+    .form-label {
+        font-weight: 600;
+        color: #333;
+    }
+
+    .form-control {
+        border-radius: 5px;
+        border: 1px solid #ddd;
+        padding: 10px;
+        font-size: 16px;
+        margin-bottom: 10px;
+    }
+
+    .btn-primary {
+        background-color: #007bff;
+        border: none;
+        border-radius: 5px;
+        padding: 10px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+    .btn-primary:hover {
+        background-color: #0056b3;
+    }
+
+    .text-center {
+        text-align: center;
+    }
+
+    .text-center a {
+        color: #007bff;
+        text-decoration: none;
+    }
+
+    .text-center a:hover {
+        text-decoration: underline;
+    }
+
+    .text-center p {
+        margin-bottom: 0;
+    }
+
+    .text-center p a {
+        color: #007bff;
+        text-decoration: none;
+    }
+
+    .text-center p a:hover {
+        text-decoration: underline;
+    }
+</style>
+
 <body class="bg-primary">
 
     <div class="container d-flex justify-content-center align-items-center vh-100">
-        <div class="card shadow p-4" style="width: 400px;">
-            <h3 class="text-center mb-3">Create Account</h3>
+        <div class="card rounded-4 shadow p-4" style="width: 400px;">
+            <h4 class="text-center font-weight-bold mb-3">Create Account</h4>
 
             <form id="signupForm">
-                <div class="mb-3">
+                <div class="mb-2">
                     <label class="form-label">Full Name</label>
                     <input type="text" class="form-control" id="name" placeholder="Full Name" required>
                 </div>
 
-                <div class="mb-3">
+                <div class="mb-2">
                     <label class="form-label">Email</label>
                     <input type="email" class="form-control" id="email" placeholder="Email" required>
                 </div>
 
-                <div class="mb-3">
+                <div class="mb-2">
                     <label class="form-label">Phone Number</label>
                     <input type="tel" class="form-control" id="phone" pattern="[0-9]{10}" placeholder="10-digit number"
                         required>
                 </div>
 
-                <div class="mb-3">
+                <div class="mb-2">
                     <label class="form-label">Password</label>
                     <input type="password" class="form-control" id="password" placeholder="Password" minlength="6"
                         required>
                 </div>
 
-                <button type="submit" class="btn btn-success w-100">Signup</button>
+                <button type="submit" class="mt-2 btn btn-success w-100">Signup</button>
             </form>
 
-            <p class="text-center mt-3">
+            <p class="text-center mt-2">
                 Already have an account?
                 <a href="./login.html">Login</a>
             </p>
@@ -62,8 +132,6 @@
                 phone: document.getElementById("phone").value,
                 password: document.getElementById("password").value
             };
-
-            console.log(data);
 
             try {
 

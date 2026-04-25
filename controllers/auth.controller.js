@@ -1,4 +1,5 @@
 const User = require("../models/user.model");
+const Group = require("../models/group.model");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
@@ -92,6 +93,29 @@ exports.login = async (req, res) => {
 };
 
 // ------------------
+// LOGOUT
+// ------------------
+exports.logout = async (req, res) => {
+
+    try {
+
+        res.clearCookie("token", {
+            httpOnly: true,
+            secure: false, // true in production (HTTPS)
+            sameSite: "lax"
+        });
+
+        return res.json({ message: "Logout successful" });
+
+    } catch (err) {
+
+        res.status(500).json({ error: err.message });
+
+    }
+
+}
+
+// ------------------
 // GET USER BY EMAIL
 // ------------------
 exports.getUserByEmail = async (req, res) => {
@@ -104,7 +128,10 @@ exports.getUserByEmail = async (req, res) => {
             return res.status(400).json({ message: "Email is required" });
         }
 
-        const user = await User.findOne({ where: { email } });
+        const user = await User.findOne({
+            where: { email },
+            attributes: ["id", "name", "email"] // never expose password/phone unless needed
+        });
 
         if (!user) {
             return res.status(404).json({ message: "User not found" });
@@ -121,7 +148,7 @@ exports.getUserByEmail = async (req, res) => {
 };
 
 // ------------------
-// ✅ GET CURRENT USER (FIX)
+// GET CURRENT USER
 // ------------------
 exports.getMe = async (req, res) => {
 
@@ -130,7 +157,13 @@ exports.getMe = async (req, res) => {
         const userId = req.user.id;
 
         const user = await User.findByPk(userId, {
-            attributes: ["id", "name", "email"]
+            attributes: ["id", "name", "email", "groupId"],
+            include: [
+                {
+                    model: Group,
+                    attributes: ["id", "name", "createdBy"]
+                }
+            ]
         });
 
         if (!user) {
@@ -138,6 +171,31 @@ exports.getMe = async (req, res) => {
         }
 
         res.json(user);
+
+    } catch (err) {
+
+        res.status(500).json({ message: "Server error" });
+
+    }
+
+};
+
+// ------------------
+// GET UNGROUPED USERS
+// ------------------
+
+exports.getUngroupedUsers = async (req, res) => {
+
+    try {
+
+        const users = await User.findAll({
+            where: {
+                groupId: null
+            },
+            attributes: ["id", "name", "email"]
+        });
+
+        res.json(users);
 
     } catch (err) {
 

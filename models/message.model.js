@@ -7,13 +7,17 @@ const Message = sequelize.define("Message", {
         type: DataTypes.TEXT,
         allowNull: false
     },
+    roomId: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
     userId: { // sender
         type: DataTypes.INTEGER,
         allowNull: false
     },
-    receiverId: { // ✅ REQUIRED for personal chat
+    receiverId: {
         type: DataTypes.INTEGER,
-        allowNull: false
+        allowNull: true
     }
 });
 

@@ -1,25 +1,26 @@
-const s3 = require("../utils/s3");
-
 exports.uploadFile = async (req, res) => {
+
     try {
 
         const file = req.file;
 
-        const params = {
-            Bucket: process.env.BUCKET_NAME,
-            Key: `${Date.now()}_${file.originalname}`,
-            Body: file.buffer,
-            ContentType: file.mimetype
-        };
+        if (!file) {
+            return res.status(400).json({ message: "No file uploaded" });
+        }
 
-        const data = await s3.upload(params).promise();
+        const url = `${req.protocol}://${req.get("host")}/uploads/${file.filename}`;
 
         res.json({
-            url: data.Location
+            url,
+            fileName: file.originalname,
+            mimeType: file.mimetype
         });
 
     } catch (err) {
+
         console.log(err);
         res.status(500).json({ message: "Upload failed" });
+
     }
+
 };

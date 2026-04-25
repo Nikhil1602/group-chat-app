@@ -8,13 +8,17 @@ const { Op } = require("sequelize");
 // ------------------
 exports.sendMessage = async (req, res) => {
     try {
-        const { message, receiverId } = req.body;
+        const { message, roomId } = req.body;
         const userId = req.user.id;
+
+        if (!roomId || !message) {
+            return res.status(400).json({ message: "roomId and message are required" });
+        }
 
         const newMessage = await Message.create({
             message,
             userId,
-            receiverId
+            roomId
         });
 
         res.json({
@@ -59,37 +63,36 @@ exports.getMessages = async (req, res) => {
 };
 
 // ------------------
-// ✅ GET MESSAGES BY ROOM
+// GET MESSAGES BY ROOM
 // ------------------
 exports.getMessagesByRoom = async (req, res) => {
 
     try {
 
         const { roomId } = req.params;
+        const currentUser = await User.findByPk(req.user.id, {
+            attributes: ["id", "groupId"]
+        });
 
-        const [user1, user2] = roomId.split("_").map(Number);
+        if (!currentUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
 
-        // 🔥 Get recent messages
+        if (!currentUser.groupId || String(currentUser.groupId) !== String(roomId)) {
+            return res.status(403).json({ message: "You are not part of this group" });
+        }
         const recentMessages = await Message.findAll({
             where: {
-                [Op.or]: [
-                    { userId: user1, receiverId: user2 },
-                    { userId: user2, receiverId: user1 }
-                ]
+                roomId
             }
         });
 
-        // 🔥 Get archived messages
         const archivedMessages = await ArchivedMessage.findAll({
             where: {
-                [Op.or]: [
-                    { userId: user1, receiverId: user2 },
-                    { userId: user2, receiverId: user1 }
-                ]
+                roomId
             }
         });
 
-        // 🔥 Merge + sort
         const allMessages = [...archivedMessages, ...recentMessages]
             .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
@@ -104,20 +107,28 @@ exports.getMessagesByRoom = async (req, res) => {
 
 };
 
+// ------------------
+// CLEAR ROOM MESSAGES
+// ------------------
 exports.clearRoomMessages = async (req, res) => {
 
     try {
 
         const { roomId } = req.params;
+        const currentUser = await User.findByPk(req.user.id, {
+            attributes: ["id", "groupId"]
+        });
 
-        const [user1, user2] = roomId.split("_").map(Number);
+        if (!currentUser) {
+            return res.status(404).json({ message: "User not found" });
+        }
 
+        if (!currentUser.groupId || String(currentUser.groupId) !== String(roomId)) {
+            return res.status(403).json({ message: "You are not part of this group" });
+        }
         await Message.destroy({
             where: {
-                [require("sequelize").Op.or]: [
-                    { userId: user1, receiverId: user2 },
-                    { userId: user2, receiverId: user1 }
-                ]
+                roomId
             }
         });
 
